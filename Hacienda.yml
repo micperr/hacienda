@@ -9,13 +9,8 @@ projects:
 
   - name: PHPWebSocket-Chat
     type: static
-    webpath: .
-
-sites:
-  - map: homestead.test
-    to: /home/vagrant/code/public
 
 
-copy:
-  - from: /home/mperlinski/Music
-    to: /Music
+# copy:
+#   - from: /home/mperlinski/Music
+#     to: /Music

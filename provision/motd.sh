@@ -1,7 +1,5 @@
-PROVISIONED="/home/vagrant/.FINAL_ADJUSTMENTS_PROVISIONED"
-if [[ ! -f $PROVISIONED ]]; then
-
-  chsh -s $(which zsh) vagrant
+flag="/home/vagrant/.provisioned.motd"
+if [[ ! -f $flag ]]; then
 
   ########
   # MOTD #
@@ -12,5 +10,5 @@ if [[ ! -f $PROVISIONED ]]; then
   sed -e '/pam_motd.so/ s/^#*/#/' -i /etc/pam.d/system-login
   echo "\nsession    optional   pam_exec.so   stdout /usr/bin/update_motd.sh\nsession    optional   pam_motd.so   motd=/etc/motd\" | sudo tee -a /etc/pam.d/sshd > /dev/null
 
-  touch $PROVISIONED
-  fi
+  touch $flag
+fi
