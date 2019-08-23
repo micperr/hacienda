@@ -1,0 +1,21 @@
+ip: "10.11.12.13"
+memory: 2048
+cpus: 2
+
+host_workspace: /home/mperlinski/Workspace
+
+projects:
+  - name: musA
+
+  - name: PHPWebSocket-Chat
+    type: static
+    webpath: .
+
+sites:
+  - map: homestead.test
+    to: /home/vagrant/code/public
+
+
+copy:
+  - from: /home/mperlinski/Music
+    to: /Music
