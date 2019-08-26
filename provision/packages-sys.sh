@@ -20,13 +20,3 @@
   wget \
   xdebug \
   zsh
-
-if ! pacman -Qs yay > /dev/null ; then
-  git clone https://aur.archlinux.org/yay.git
-  cd yay
-  makepkg -si --noconfirm --needed
-  cd ..
-  rm -rf yay
-
-  yay -S ne
-fi

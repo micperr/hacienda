@@ -2,103 +2,24 @@
 
 class Hacienda
   SETTINGS_FILE = 'Hacienda.yml'
+  DEFAULT_IP = '10.11.12.13'
+  GUEST_HOME_DIR = '/home/vagrant'
+  MOUNT_OPTS = ['dmode=750', 'fmode=640', 'actimeo=1', 'rw', 'tcp', 'nolock', 'noacl', 'async'].freeze
+  SITETYPES_DIR = 'provision/templates/sites'
   REQUIRED_SETTINGS = ['host_workspace'].freeze
-  DEFAULT_SITETYPE = 'symfony'
 
   def initialize(config)
     @settings = parse_validate_settings
     @config = config
+    @ip = @settings['ip'] ||= DEFAULT_IP
   end
 
   def configure
     vm
     vb
-    ssh
-    copy
     provision
-  end
-
-  private
-
-  def provision
-    # @config.vm.provision 'shell', path: 'provision/packages.sh'
-    # @config.vm.provision 'shell', inline: 'chsh -s $(which zsh) vagrant'
-    # @config.vm.provision 'shell', path: 'provision/motd.sh'
-    # @config.vm.provision 'shell', path: 'provision/php.sh'
-    # @config.vm.provision 'shell', path: 'provision/mariadb.sh'
-    # @config.vm.provision 'shell', path: 'provision/mpd.sh', privileged: false
-    # @config.vm.provision 'shell', path: 'provision/prezto.sh', privileged: false
-    # @config.vm.provision 'shell', path: 'provision/composer.sh', privileged: false
-
-    @config.vm.provision 'shell', path: 'provision/nginx.sh'
-    # @config.vm.provision 'file', source: './provision/templates/nginx.conf', destination: '/etc/nginx/nginx.conf'
-    # @config.vm.provision 'shell', path: 'provision/nginx-sites-predefined.sh'
-
-    if @settings.include? 'projects'
-
-      sitetypes_path = 'provision/templates/sites'
-      guest_workspace = @settings['guest_workspace'] ||= '/home/vagrant'
-      avail_sitetypes = Dir.entries(sitetypes_path).reject { |f| ['.', '..'].include? f }
-      mount_opts = ['dmode=750', 'fmode=640', 'actimeo=1', 'rw', 'tcp', 'nolock', 'noacl', 'async']
-      # mount_opts = ['actimeo=1', 'nolock']
-
-      @settings['projects'].each do |proj|
-
-        name = proj['name'] ||= error("`name` must be provided for a project #{proj}")
-        type = proj['type'] ||= DEFAULT_SITETYPE
-        domain = proj['domain'] ||= "#{name}.local"
-
-        unless avail_sitetypes.include? "#{type}.conf"
-          error("`#{type}` site type is not valid")
-        end
-
-        #########
-        # SYNCED FOLDERS
-        #
-        # @config.vm.synced_folder File.join(@settings['host_workspace'], name),
-        #                          File.join(guest_workspace, name),
-        #                          'mount_options' => mount_opts,
-        #                          "type": 'nfs',
-        #                          "nfs_udp": false,
-        #                          "nfs_export": false
-
-        #########
-        # SITES
-        #
-        # webpath = proj['webpath'] ||= DEFAULT_WEBPATH
-
-        if (proj.include? 'webpath') && ! proj['webpath'].strip.empty?
-          root = "#{guest_workspace}/#{name}/#{proj['webpath']}"
-        else
-          root = "#{guest_workspace}/#{name}"
-        end
-
-        block = File.read("#{sitetypes_path}/#{type}.conf").gsub(/{ROOT}|{DOMAIN}/, '{ROOT}' => root, '{DOMAIN}' => domain.downcase)
-
-        @config.vm.provision "shell", inline: <<-SITE
-          echo "#{block}" > /etc/nginx/sites-available/#{name}.conf
-          ln -s /etc/nginx/sites-available/#{name}.conf /etc/nginx/sites-enabled/#{name}.conf
-SITE
-
-        # @config.vm.provision 'shell' do |s|
-        #   s.name = 'Creating site: ' + name
-        #   s.path = '/provision/site.sh'
-        #   s.args = [
-        #     name,  # $1
-        #     block,  # $2
-        #     # domain # $3
-        #     # root  # $4
-        #   ]
-        # end
-
-        # config.vm.provision 'shell' do |s|
-        # s.path = script_dir + '/hosts-add.sh'
-        # s.args = ['127.0.0.1', site['map']]
-        # end
-      end
-    end
-
-    self
+    copy
+    triggers
   end
 
   private
@@ -106,9 +27,9 @@ SITE
   def vm
     @config.vm.box = 'archlinux/archlinux'
     @config.vm.hostname = 'hacienda'
-    @config.vm.network 'private_network', ip: @settings['ip'] ||= '10.11.12.13'
+    @config.vm.network 'private_network', ip: @ip
     # @config.vm.network 'forwarded_port', guest: 3306, host: 3306
-    @config.vm.synced_folder '.', '/vagrant', disabled: true
+    @config.ssh.forward_agent = true
     self
   end
 
@@ -135,9 +56,88 @@ SITE
 
   private
 
-  def ssh
-    @config.ssh.forward_agent = true
+  def provision
+    script('Installing systmem packages', 'packages-sys.sh')
+    script('Installing AUR packages', 'packages-aur.sh', false)
+    inline('Switching shell to zsh', 'chsh -s $(which zsh) vagrant')
+    inline('Chmod 755 guest workspace ', "chmod 755 #{GUEST_HOME_DIR}")
+    script('Configuring MOTD', 'motd.sh')
+    script('Configuring PHP', 'php.sh')
+    script('Installing MariaDB', 'mariadb.sh')
+    script('Configuring MPD (Music Player Daemon)', 'mpd.sh', false)
+    script('Installing prezto', 'prezto.sh', false)
+    script('Installing composer', 'composer.sh', false)
+    script('Configuring nginx folders', 'nginx-folders.sh')
+    inline('Copying nginx.conf', 'cp /vagrant/provision/templates/nginx.conf /etc/nginx/nginx.conf')
+    script('Configuring nginx predefined sites (phpinfo, adminer)', 'nginx-sites-predefined.sh')
+
+    # PROJECTS FOLDERS AND SITES
+    @hosts = []
+    if @settings.include? 'projects'
+
+      avail_sitetypes = Dir.entries(SITETYPES_DIR)
+                           .reject { |f| ['.', '..'].include? f }
+                           .map { |s| s.sub('.conf', '') }
+
+      @settings['projects'].each do |dir, config|
+        type = config['type'] ||= error(format('`type` config value is not provided for a "%s" project', dir))
+        domain = (config['domain'] ||= "#{dir}.local").downcase
+
+        unless avail_sitetypes.include? type.to_s
+          error("`#{type}` site type is not valid. Valid types are: #{avail_sitetypes.join(', ')}")
+        end
+
+        @hosts.push(domain)
+
+        # SYNC FOLDER
+        @config.vm.synced_folder File.join(@settings['host_workspace'], dir),
+                                 File.join(GUEST_HOME_DIR, dir),
+                                 'mount_options' => MOUNT_OPTS,
+                                 "type": 'nfs',
+                                 "nfs_udp": false,
+                                 "nfs_export": false
+
+        # NGINX SITE CONFIG
+        root = if (config.include? 'webpath') && !config['webpath'].strip.empty?
+                 File.join(GUEST_HOME_DIR, dir, config['webpath'])
+               else
+                 File.join(GUEST_HOME_DIR, dir)
+               end
+
+        site_nginx_block = File.read("#{SITETYPES_DIR}/#{type}.conf").gsub(/{ROOT}|{DOMAIN}/, '{ROOT}' => root, '{DOMAIN}' => domain)
+        script("Configuring nginx site #{domain}", 'nginx-site.sh', true, [dir, site_nginx_block])
+      end
+    end
+
     self
+  end
+
+  private
+
+  def inline(title, command, privileged = true)
+    @config.vm.provision 'shell' do |s|
+      s.name = info(title)
+      s.inline = command
+      s.privileged = privileged
+    end
+  end
+
+  private
+
+  def script(title, script, privileged = true, args = [])
+    @config.vm.provision 'shell' do |s|
+      s.name = info(title)
+      s.path = "provision/#{script}"
+      s.privileged = privileged
+      s.args = args
+    end
+  end
+
+  def triggers
+    @config.trigger.after :up, :provision, :reload do |t|
+      t.info = info('Adding IP-host pairs to /etc/hosts')
+      t.run = { path: 'provision/hosts.sh', args: [@ip] + @hosts }
+    end
   end
 
   private
@@ -181,6 +181,10 @@ SITE
 
   def error(msg)
     abort "\e[31m#{msg}\e[0m"
+  end
+
+  def info(msg)
+    "\e[34m#{msg}\e[0m"
   end
 
   def print_error(msg)

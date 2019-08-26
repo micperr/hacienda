@@ -5,12 +5,14 @@ cpus: 2
 host_workspace: /home/mperlinski/Workspace
 
 projects:
-  - name: musA
+  mus:
+    type: symfony
+    webpath: public
 
-  - name: PHPWebSocket-Chat
+  PHPWebSocket-Chat:
     type: static
 
 
 # copy:
-#   - from: /home/mperlinski/Music
-#     to: /Music
+  # - from: /home/mperlinski/Music
+    # to: /home/vagrant/music

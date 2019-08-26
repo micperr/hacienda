@@ -8,7 +8,7 @@ if [[ ! -f $flag ]]; then
   chmod 775 /usr/bin/update_motd.sh
   # sed -e ':motd=/etc/motd: s/^#*/#/' -i /etc/pam.d/system-login
   sed -e '/pam_motd.so/ s/^#*/#/' -i /etc/pam.d/system-login
-  echo "\nsession    optional   pam_exec.so   stdout /usr/bin/update_motd.sh\nsession    optional   pam_motd.so   motd=/etc/motd\" | sudo tee -a /etc/pam.d/sshd > /dev/null
+  printf "\nsession    optional   pam_exec.so   stdout /usr/bin/update_motd.sh\nsession    optional   pam_motd.so   motd=/etc/motd" | sudo tee -a /etc/pam.d/sshd > /dev/null
 
   touch $flag
 fi

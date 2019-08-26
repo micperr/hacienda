@@ -1,5 +1,4 @@
 if [ ! -d ~/.zprezto ]; then
-  echo 'Installing prezto'
   git clone --quiet --recursive https://github.com/micperr/prezto.git ~/.zprezto
   setopt EXTENDED_GLOB
   for rcfile in ${ZDOTDIR:-$HOME}/.zprezto/runcoms/^README.md(.N); do
