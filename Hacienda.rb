@@ -51,21 +51,21 @@ class Hacienda
   def provision
     # script('Installing system packages', 'packages-sys.sh')
     script('Installing AUR packages', 'packages-aur.sh', false)
-    # inline('Switching default shell to zsh', 'chsh -s $(which zsh) vagrant')
-    # inline('Chmod 755 guest workspace ', "chmod 755 #{GUEST_HOME_DIR}")
-    # script('Configuring MOTD', 'motd.sh')
-    # script('Configuring PHP', 'php.sh')
-    # script('Installing MariaDB', 'mariadb.sh', true, [], 'DB_PASSWORD' => @settings['db_password'])
-    # script('Configuring MPD (Music Player Daemon)', 'mpd.sh', false)
-    # script('Installing prezto', 'prezto.sh', false)
-    # script('Installing composer', 'composer.sh', false)
-    # script('Configuring nginx folders', 'nginx-folders.sh')
-    # inline('Copying nginx.conf', 'cp /vagrant/provision/templates/nginx.conf /etc/nginx/nginx.conf')
-    # script('Configuring nginx predefined sites (phpinfo, adminer)', 'nginx-sites-predefined.sh')
+    inline('Switching default shell to zsh', 'chsh -s $(which zsh) vagrant')
+    inline('Chmod 755 guest workspace ', "chmod 755 #{GUEST_HOME_DIR}")
+    script('Configuring MOTD', 'motd.sh')
+    script('Configuring PHP', 'php.sh')
+    script('Installing MariaDB', 'mariadb.sh', true, [], 'DB_PASSWORD' => @settings['db_password'])
+    script('Configuring MPD (Music Player Daemon)', 'mpd.sh', false)
+    script('Installing prezto', 'prezto.sh', false)
+    script('Installing composer', 'composer.sh', false)
+    script('Configuring nginx folders', 'nginx-folders.sh')
+    inline('Copying nginx.conf', 'cp /vagrant/provision/templates/nginx.conf /etc/nginx/nginx.conf')
+    script('Configuring nginx predefined sites (phpinfo, adminer)', 'nginx-sites-predefined.sh')
 
-    # setup_projects
+    setup_projects
 
-    # script('Enabling daemon services', 'daemons.sh')
+    script('Enabling daemon services', 'daemons.sh')
   end
 
   private
