@@ -45,5 +45,3 @@ xdebug.max_nesting_level=300
 xdebug.var_display_max_depth = 5
 xdebug.var_display_max_children = 256
 xdebug.var_display_max_data = 1024" > /etc/php/conf.d/xdebug.ini
-
-systemctl enable php-fpm && systemctl start php-fpm

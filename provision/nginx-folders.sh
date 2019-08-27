@@ -10,7 +10,3 @@ rm -rf \
   /usr/share/nginx/html \
   $sites_enabled/* \
   $sites_available/*
-
-
-# systemctl enable nginx && systemctl start nginx
-mkdir -p /usr/share/nginx

@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
 
 sudo sed -i '/### HACIENDA-SITES-BEGIN/,/### HACIENDA-SITES-END/d' /etc/hosts
+
+if [[ $1 == '--delete-only' ]]; then
+  exit 0
+fi
+
+# Add HACIENDA-SITES-* tags
 printf "### HACIENDA-SITES-BEGIN\n### HACIENDA-SITES-END\n" | sudo tee -a /etc/hosts >/dev/null
 
+
+# Add hosts
 if [[ $1 && $2 ]]; then
 
   IP=$1
