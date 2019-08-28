@@ -6,15 +6,18 @@ cpus: 2
 # db_password:
 
 # projects:
-#  project_folder_inside_workspace_1:
-#    type: symfony
-#    webpath: public
+#  project_folder_inside_workspace:
+#    type: symfony # required
+#    domain: example.dev # optional (defaults to *.local)
+#    webpath: public # optional (defaults to project's root)
 
-#  project_folder_inside_workspace_2:
-#    type: symfony
-#    webpath: public
+#  another_project_folder_inside_workspace:
+#    type: static
+#    (...)
 
 
 # copy:
-  # - from: /home/mperlinski/Music
-    # to: /home/vagrant/music
+  # - from: /exampledir
+    # to: /exampledir
+
+# mpd_music_directory: /exampledir # defaults to "/vagrant/Music"

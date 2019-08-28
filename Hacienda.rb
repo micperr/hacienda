@@ -4,6 +4,7 @@ class Hacienda
   SETTINGS_FILE = 'Hacienda.yml'
   DEFAULT_IP = '10.11.12.13'
   GUEST_HOME_DIR = '/home/vagrant'
+  DEFAULT_MPD_MUSIC_DIR = '/vagrant/Music'
   SITETYPES_DIR = 'provision/templates/sites'
   MOUNT_OPTS = ['dmode=750', 'fmode=640', 'actimeo=1', 'rw', 'tcp', 'nolock', 'noacl', 'async'].freeze
   REQUIRED_SETTINGS = %w[host_workspace db_password].freeze
@@ -12,6 +13,7 @@ class Hacienda
     @settings = parse_and_validate_settings
     @config = config
     @ip = @settings['ip'] ||= DEFAULT_IP
+    @mpd_music_directory = @settings['mpd_music_directory'] ||= DEFAULT_MPD_MUSIC_DIR
   end
 
   def construct
@@ -26,7 +28,8 @@ class Hacienda
     @config.vm.box = 'archlinux/archlinux'
     @config.vm.hostname = 'hacienda'
     @config.vm.network 'private_network', ip: @ip
-    # @config.vm.network 'forwarded_port', guest: 3306, host: 3306
+    @config.vm.network 'forwarded_port', guest: 3306, host: 3306
+    @config.vm.network 'forwarded_port', guest: 8000, host: 8000
     @config.ssh.forward_agent = true
 
     @config.vm.provider 'virtualbox' do |vb|
@@ -50,22 +53,21 @@ class Hacienda
 
   def provision
     # script('Installing system packages', 'packages-sys.sh')
-    script('Installing AUR packages', 'packages-aur.sh', false)
-    inline('Switching default shell to zsh', 'chsh -s $(which zsh) vagrant')
-    inline('Chmod 755 guest workspace ', "chmod 755 #{GUEST_HOME_DIR}")
-    script('Configuring MOTD', 'motd.sh')
-    script('Configuring PHP', 'php.sh')
-    script('Installing MariaDB', 'mariadb.sh', true, [], 'DB_PASSWORD' => @settings['db_password'])
-    script('Configuring MPD (Music Player Daemon)', 'mpd.sh', false)
-    script('Installing prezto', 'prezto.sh', false)
-    script('Installing composer', 'composer.sh', false)
-    script('Configuring nginx folders', 'nginx-folders.sh')
-    inline('Copying nginx.conf', 'cp /vagrant/provision/templates/nginx.conf /etc/nginx/nginx.conf')
-    script('Configuring nginx predefined sites (phpinfo, adminer)', 'nginx-sites-predefined.sh')
+    # script('Installing AUR packages', 'packages-aur.sh', false)
+    # inline('Switching default shell to zsh', 'chsh -s $(which zsh) vagrant')
+    # inline('Chmod 755 guest workspace ', "chmod 755 #{GUEST_HOME_DIR}")
+    # script('Configuring MOTD', 'motd.sh')
+    # script('Configuring PHP', 'php.sh')
+    # script('Installing MariaDB', 'mariadb.sh', true, [], 'DB_PASSWORD' => @settings['db_password'])
+    script('Configuring MPD (Music Player Daemon)', 'mpd.sh', false, [@mpd_music_directory])
+    # script('Installing prezto', 'prezto.sh', false)
+    # script('Installing composer', 'composer.sh', false)
+    # script('Configuring nginx folders', 'nginx.sh')
+    # script('Configuring nginx predefined sites (phpinfo, adminer)', 'nginx-sites-predefined.sh')
 
-    setup_projects
+    # setup_projects
 
-    script('Enabling daemon services', 'daemons.sh')
+    # script('Enabling daemon services', 'daemons.sh')
   end
 
   private
@@ -111,6 +113,8 @@ class Hacienda
       update_etc_hosts(hosts)
 
     end
+
+    clean_unused_sites()
   end
 
   private
@@ -159,6 +163,15 @@ class Hacienda
     @config.trigger.after :destroy do |t|
       t.info = info('Removing IP-host entries from /etc/hosts')
       t.run = { path: 'provision/hosts.sh', args: ['--delete-only'] }
+    end
+  end
+
+  private
+
+  def clean_unused_sites()
+    @config.trigger.after :all do |t|
+      t.info = info('Cleaning unused sites folders and configs')
+      t.run_remote = { path: 'provision/nginx-sites-clean.sh' }
     end
   end
 
