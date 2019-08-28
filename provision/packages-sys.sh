@@ -19,4 +19,5 @@
   unzip \
   wget \
   xdebug \
+  yarn \
   zsh

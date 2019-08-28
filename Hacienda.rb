@@ -6,7 +6,7 @@ class Hacienda
   GUEST_HOME_DIR = '/home/vagrant'
   DEFAULT_MPD_MUSIC_DIR = '/vagrant/Music'
   SITETYPES_DIR = 'provision/templates/sites'
-  MOUNT_OPTS = ['dmode=750', 'fmode=640', 'actimeo=1', 'rw', 'tcp', 'nolock', 'noacl', 'async'].freeze
+  MOUNT_OPTS = %w[rw tcp nolock noacl async].freeze
   REQUIRED_SETTINGS = %w[host_workspace db_password].freeze
 
   def initialize(config)
@@ -95,6 +95,7 @@ class Hacienda
                                  'mount_options' => MOUNT_OPTS,
                                  "type": 'nfs',
                                  "nfs_udp": false
+        #  "nfs_version": 4
         #  "nfs_export": false
 
         # NGINX SITE CONFIG
@@ -121,7 +122,7 @@ class Hacienda
 
     end
 
-    clean_unused_sites()
+    clean_unused_sites
   end
 
   private
@@ -175,7 +176,7 @@ class Hacienda
 
   private
 
-  def clean_unused_sites()
+  def clean_unused_sites
     @config.trigger.after :reload do |t|
       t.info = info('Cleaning unused sites folders and configs')
       t.run_remote = { path: 'provision/nginx-sites-clean.sh' }
