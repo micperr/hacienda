@@ -52,22 +52,22 @@ class Hacienda
   private
 
   def provision
-    # script('Installing system packages', 'packages-sys.sh')
-    # script('Installing AUR packages', 'packages-aur.sh', false)
-    # inline('Switching default shell to zsh', 'chsh -s $(which zsh) vagrant')
-    # inline('Chmod 755 guest workspace ', "chmod 755 #{GUEST_HOME_DIR}")
-    # script('Configuring MOTD', 'motd.sh')
-    # script('Configuring PHP', 'php.sh')
-    # script('Installing MariaDB', 'mariadb.sh', true, [], 'DB_PASSWORD' => @settings['db_password'])
+    script('Installing system packages', 'packages-sys.sh')
+    script('Installing AUR packages', 'packages-aur.sh', false)
+    inline('Switching default shell to zsh', 'chsh -s $(which zsh) vagrant')
+    inline('Chmod 755 guest workspace ', "chmod 755 #{GUEST_HOME_DIR}")
+    script('Configuring MOTD', 'motd.sh')
+    script('Configuring PHP', 'php.sh')
+    script('Installing MariaDB', 'mariadb.sh', true, [], 'DB_PASSWORD' => @settings['db_password'])
     script('Configuring MPD (Music Player Daemon)', 'mpd.sh', false, [@mpd_music_directory])
-    # script('Installing prezto', 'prezto.sh', false)
-    # script('Installing composer', 'composer.sh', false)
-    # script('Configuring nginx folders', 'nginx.sh')
-    # script('Configuring nginx predefined sites (phpinfo, adminer)', 'nginx-sites-predefined.sh')
+    script('Installing prezto', 'prezto.sh', false)
+    script('Installing composer', 'composer.sh', false)
+    script('Configuring nginx folders', 'nginx.sh')
+    script('Configuring nginx predefined sites (phpinfo, adminer)', 'nginx-sites-predefined.sh')
 
-    # setup_projects
+    setup_projects
 
-    # script('Enabling daemon services', 'daemons.sh')
+    script('Enabling daemon services', 'daemons.sh')
   end
 
   private
@@ -81,30 +81,37 @@ class Hacienda
                            .reject { |f| ['.', '..'].include? f }
                            .map { |s| s.sub('.conf', '') }
 
-      @settings['projects'].each do |dir, config|
-        type = config['type'] ||= error(format('`type` config value is not provided for a "%s" project', dir))
-        domain = (config['domain'] ||= "#{dir}.local").downcase
+      @settings['projects'].each do |project_dirname, config|
+        type = config['type'] ||= error(format('`type` config value is not provided for a "%s" project', project_dirname))
+        domain = (config['domain'] ||= "#{project_dirname}.local").downcase
 
         unless avail_sitetypes.include? type.to_s
           error("`#{type}` site type is not valid. Valid types are: #{avail_sitetypes.join(', ')}")
         end
 
         # SYNC FOLDER
-        @config.vm.synced_folder File.join(@settings['host_workspace'], dir),
-                                 File.join(GUEST_HOME_DIR, dir),
+        @config.vm.synced_folder File.join(@settings['host_workspace'], project_dirname),
+                                 File.join(GUEST_HOME_DIR, project_dirname),
                                  'mount_options' => MOUNT_OPTS,
                                  "type": 'nfs',
                                  "nfs_udp": false
         #  "nfs_export": false
 
         # NGINX SITE CONFIG
+        sitetype_file = "/vagrant/#{SITETYPES_DIR}/#{type}.conf"
         hasWebpath = (config.include? 'webpath') && !config['webpath'].strip.empty?
         root = hasWebpath ?
-                File.join(GUEST_HOME_DIR, dir, config['webpath']) : File.join(GUEST_HOME_DIR, dir)
+                File.join(GUEST_HOME_DIR, project_dirname, config['webpath']) : File.join(GUEST_HOME_DIR, project_dirname)
 
         script(
           "Configuring nginx site #{domain}", 'nginx-site.sh', true,
-          [dir, File.read("#{SITETYPES_DIR}/#{type}.conf").gsub(/{ROOT}|{DOMAIN}/, '{ROOT}' => root, '{DOMAIN}' => domain)]
+          [
+            project_dirname, # $1
+            sitetype_file,   # $2
+            root,            # $3
+            domain           # $4
+          ]
+          # File.read("#{SITETYPES_DIR}/#{type}.conf").gsub(/{ROOT}|{DOMAIN}/, '{ROOT}' => root, '{DOMAIN}' => domain)
         )
 
         hosts.push(domain)
@@ -169,7 +176,7 @@ class Hacienda
   private
 
   def clean_unused_sites()
-    @config.trigger.after :all do |t|
+    @config.trigger.after :reload do |t|
       t.info = info('Cleaning unused sites folders and configs')
       t.run_remote = { path: 'provision/nginx-sites-clean.sh' }
     end

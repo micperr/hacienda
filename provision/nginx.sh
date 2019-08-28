@@ -13,7 +13,6 @@ rm -rf \
 
 cp /vagrant/provision/templates/nginx.conf /etc/nginx/nginx.conf
 
-
 # PHP Info
 echo "<?php phpinfo() ?>" | tee /usr/share/nginx/phpinfo.php > /dev/null
 
