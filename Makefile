@@ -8,22 +8,22 @@ init: dist-exists ## Create Hacienda settings file
 up: dist-exists ## Start VM
 	vagrant up
 
-up-and-provision: dist-exists ## Start and provision VM
+upr: dist-exists ## Start and provision VM
 	vagrant up --provision
 
-provision: dist-exists ## Provision VM
+p: dist-exists ## Provision VM
 	vagrant provision
 
-reload: dist-exists ## Reload VM
+r: dist-exists ## Reload VM
 	vagrant reload
 
-ssh: ## SSH into VM
+s: ## SSH into VM
 	vagrant ssh
 
-halt: ## Halt VM
+h: ## Halt VM
 	./.venv/bin/python server.py build
 
-destroy: ## Destroy VM
+d: ## Destroy VM
 	vagrant destroy
 
 dist-exists: Hacienda.yml.dist

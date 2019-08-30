@@ -52,22 +52,22 @@ class Hacienda
   private
 
   def provision
-    script('Installing system packages', 'packages-sys.sh')
-    script('Installing AUR packages', 'packages-aur.sh', false)
-    inline('Switching default shell to zsh', 'chsh -s $(which zsh) vagrant')
-    inline('Chmod 755 guest workspace ', "chmod 755 #{GUEST_HOME_DIR}")
-    script('Configuring MOTD', 'motd.sh')
+    # script('Installing system packages', 'packages-sys.sh')
+    # script('Installing AUR packages', 'packages-aur.sh', false)
+    # inline('Switching default shell to zsh', 'chsh -s $(which zsh) vagrant')
+    # inline('Chmod 755 guest workspace ', "chmod 755 #{GUEST_HOME_DIR}")
+    # script('Configuring MOTD', 'motd.sh')
     script('Configuring PHP', 'php.sh')
-    script('Installing MariaDB', 'mariadb.sh', true, [], 'DB_PASSWORD' => @settings['db_password'])
-    script('Configuring MPD (Music Player Daemon)', 'mpd.sh', false, [@mpd_music_directory])
-    script('Installing prezto', 'prezto.sh', false)
-    script('Installing composer', 'composer.sh', false)
-    script('Configuring nginx folders', 'nginx.sh')
-    script('Configuring nginx predefined sites (phpinfo, adminer)', 'nginx-sites-predefined.sh')
+    # script('Installing MariaDB', 'mariadb.sh', true, [], 'DB_PASSWORD' => @settings['db_password'])
+    # script('Configuring MPD (Music Player Daemon)', 'mpd.sh', false, [@mpd_music_directory])
+    # script('Installing prezto', 'prezto.sh', false)
+    # script('Installing composer', 'composer.sh', false)
+    # script('Configuring nginx folders', 'nginx.sh')
+    # script('Configuring nginx predefined sites (phpinfo, adminer)', 'nginx-sites-predefined.sh')
 
-    setup_projects
+    # setup_projects
 
-    script('Enabling daemon services', 'daemons.sh')
+    # script('Enabling daemon services', 'daemons.sh')
   end
 
   private
@@ -92,9 +92,9 @@ class Hacienda
         # SYNC FOLDER
         @config.vm.synced_folder File.join(@settings['host_workspace'], project_dirname),
                                  File.join(GUEST_HOME_DIR, project_dirname),
-                                 'mount_options' => MOUNT_OPTS,
-                                 "type": 'nfs',
-                                 "nfs_udp": false
+                                 'mount_options' => MOUNT_OPTS
+                                #  "type": 'nfs',
+                                #  "nfs_udp": false
         #  "nfs_version": 4
         #  "nfs_export": false
 
@@ -104,16 +104,31 @@ class Hacienda
         root = hasWebpath ?
                 File.join(GUEST_HOME_DIR, project_dirname, config['webpath']) : File.join(GUEST_HOME_DIR, project_dirname)
 
-        script(
-          "Configuring nginx site #{domain}", 'nginx-site.sh', true,
-          [
+
+        # script(
+        #   "Configuring nginx site #{domain}", 'nginx-site.sh', true,
+        #   [
+        #     project_dirname, # $1
+        #     sitetype_file,   # $2
+        #     root,            # $3
+        #     domain           # $4
+        #     # File.read("#{SITETYPES_DIR}/#{type}.conf").gsub(/{ROOT}|{DOMAIN}/, '{ROOT}' => root, '{DOMAIN}' => domain)
+        #   ]
+        # )
+
+        @config.vm.provision 'sites', type: 'shell' do |s|
+          s.name = "Configuring nginx site #{domain}"
+          s.path = "provision/nginx-site.sh"
+          s.privileged = true
+          s.args =           [
             project_dirname, # $1
             sitetype_file,   # $2
             root,            # $3
             domain           # $4
+            # File.read("#{SITETYPES_DIR}/#{type}.conf").gsub(/{ROOT}|{DOMAIN}/, '{ROOT}' => root, '{DOMAIN}' => domain)
           ]
-          # File.read("#{SITETYPES_DIR}/#{type}.conf").gsub(/{ROOT}|{DOMAIN}/, '{ROOT}' => root, '{DOMAIN}' => domain)
-        )
+
+        end
 
         hosts.push(domain)
       end
@@ -163,7 +178,7 @@ class Hacienda
   private
 
   def update_etc_hosts(hosts)
-    @config.trigger.after :provision do |t|
+    @config.trigger.after :up, :provision do |t|
       t.info = info('Adding IP-host entries to /etc/hosts')
       t.run = { path: 'provision/hosts.sh', args: [@ip] + hosts }
     end

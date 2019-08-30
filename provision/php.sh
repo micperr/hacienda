@@ -1,3 +1,7 @@
+
+sed -i 's/user = http/user = vagrant/g' /etc/php/php-fpm.d/www.conf
+sed -i 's/group = http/group = vagrant/g' /etc/php/php-fpm.d/www.conf
+
 function enable_ext() {
   sed -i "/extension\s*=\s*$1/ s/^;*//" /etc/php/php.ini
 }
