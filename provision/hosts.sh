@@ -22,7 +22,7 @@ if [[ $1 && $2 ]]; then
       echo "$HOSTNAME already exists:"
       printf "$(grep [^\.]$HOSTNAME /etc/hosts)\n\n"
     else
-      sudo sed -i "/### HACIENDA-SITES-BEGIN/c\### HACIENDA-SITES-BEGIN\\n$IP $HOSTNAME" /etc/hosts
+      sudo sed -i "/### HACIENDA-SITES-BEGIN/c\### HACIENDA-SITES-BEGIN\\n$IP $HOSTNAME www.$HOSTNAME" /etc/hosts
 
       if ! [ -n "$(grep [^\.]$HOSTNAME /etc/hosts)" ]; then
         echo "Failed to add $HOSTNAME, Try again!"

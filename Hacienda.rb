@@ -6,7 +6,8 @@ class Hacienda
   GUEST_HOME_DIR = '/home/vagrant'
   DEFAULT_MPD_MUSIC_DIR = '/vagrant/Music'
   SITETYPES_DIR = 'provision/templates/sites'
-  MOUNT_OPTS = %w[rw tcp nolock noacl async].freeze
+  MOUNT_OPTS = %w[rw async nolock sec=sys].freeze
+  # MOUNT_OPTS = %w[rw tcp nolock noacl async].freeze
   REQUIRED_SETTINGS = %w[host_workspace db_password].freeze
 
   def initialize(config)
@@ -26,10 +27,12 @@ class Hacienda
 
   def vm
     @config.vm.box = 'archlinux/archlinux'
+    @config.vm.box_version = '2019.08.05'
+    @config.vm.box_check_update = false
     @config.vm.hostname = 'hacienda'
     @config.vm.network 'private_network', ip: @ip
     @config.vm.network 'forwarded_port', guest: 3306, host: 3306
-    @config.vm.network 'forwarded_port', guest: 8000, host: 8000
+    @config.vm.network 'forwarded_port', guest: 8080, host: 8080
     @config.ssh.forward_agent = true
 
     @config.vm.provider 'virtualbox' do |vb|
@@ -52,22 +55,22 @@ class Hacienda
   private
 
   def provision
-    # script('Installing system packages', 'packages-sys.sh')
-    # script('Installing AUR packages', 'packages-aur.sh', false)
-    # inline('Switching default shell to zsh', 'chsh -s $(which zsh) vagrant')
-    # inline('Chmod 755 guest workspace ', "chmod 755 #{GUEST_HOME_DIR}")
-    # script('Configuring MOTD', 'motd.sh')
+    script('Installing system packages', 'packages-sys.sh')
+    script('Installing AUR packages', 'packages-aur.sh', false)
+    inline('Switching default shell to zsh', 'chsh -s $(which zsh) vagrant')
+    inline('Chmod 755 guest workspace ', "chmod 755 #{GUEST_HOME_DIR}")
+    script('Configuring MOTD', 'motd.sh')
     script('Configuring PHP', 'php.sh')
-    # script('Installing MariaDB', 'mariadb.sh', true, [], 'DB_PASSWORD' => @settings['db_password'])
-    # script('Configuring MPD (Music Player Daemon)', 'mpd.sh', false, [@mpd_music_directory])
-    # script('Installing prezto', 'prezto.sh', false)
-    # script('Installing composer', 'composer.sh', false)
-    # script('Configuring nginx folders', 'nginx.sh')
-    # script('Configuring nginx predefined sites (phpinfo, adminer)', 'nginx-sites-predefined.sh')
+    script('Installing MariaDB', 'mariadb.sh', true, [], 'DB_PASSWORD' => @settings['db_password'])
+    script('Configuring MPD (Music Player Daemon)', 'mpd.sh', false, [@mpd_music_directory])
+    script('Installing prezto', 'prezto.sh', false)
+    script('Installing composer', 'composer.sh', false)
+    script('Configuring nginx folders', 'nginx.sh')
+    script('Configuring nginx predefined sites (phpinfo, adminer)', 'nginx-sites-predefined.sh')
 
-    # setup_projects
+    setup_projects
 
-    # script('Enabling daemon services', 'daemons.sh')
+    script('Enabling daemon services', 'daemons.sh')
   end
 
   private
@@ -90,12 +93,11 @@ class Hacienda
         end
 
         # SYNC FOLDER
-        @config.vm.synced_folder File.join(@settings['host_workspace'], project_dirname),
-                                 File.join(GUEST_HOME_DIR, project_dirname),
-                                 'mount_options' => MOUNT_OPTS
-                                #  "type": 'nfs',
-                                #  "nfs_udp": false
-        #  "nfs_version": 4
+        @config.vm.synced_folder File.join(@settings['host_workspace'], project_dirname), File.join(GUEST_HOME_DIR, project_dirname),
+                                 mount_options: MOUNT_OPTS,
+                                 type: 'nfs'
+        #  nfs_udp: false
+        #  nfs_version: 4
         #  "nfs_export": false
 
         # NGINX SITE CONFIG
@@ -104,31 +106,16 @@ class Hacienda
         root = hasWebpath ?
                 File.join(GUEST_HOME_DIR, project_dirname, config['webpath']) : File.join(GUEST_HOME_DIR, project_dirname)
 
-
-        # script(
-        #   "Configuring nginx site #{domain}", 'nginx-site.sh', true,
-        #   [
-        #     project_dirname, # $1
-        #     sitetype_file,   # $2
-        #     root,            # $3
-        #     domain           # $4
-        #     # File.read("#{SITETYPES_DIR}/#{type}.conf").gsub(/{ROOT}|{DOMAIN}/, '{ROOT}' => root, '{DOMAIN}' => domain)
-        #   ]
-        # )
-
-        @config.vm.provision 'sites', type: 'shell' do |s|
-          s.name = "Configuring nginx site #{domain}"
-          s.path = "provision/nginx-site.sh"
-          s.privileged = true
-          s.args =           [
+        script(
+          "Configuring nginx site #{domain}", 'nginx-site.sh', true,
+          [
             project_dirname, # $1
             sitetype_file,   # $2
             root,            # $3
             domain           # $4
             # File.read("#{SITETYPES_DIR}/#{type}.conf").gsub(/{ROOT}|{DOMAIN}/, '{ROOT}' => root, '{DOMAIN}' => domain)
-          ]
-
-        end
+          ], {}
+        )
 
         hosts.push(domain)
       end
@@ -165,7 +152,7 @@ class Hacienda
 
   private
 
-  def script(title, script, privileged = true, args = [], envs = {})
+  def script(title, script, privileged = true, args = [], envs = {}, name = 'all')
     @config.vm.provision 'shell' do |s|
       s.name = info(title)
       s.path = "provision/#{script}"

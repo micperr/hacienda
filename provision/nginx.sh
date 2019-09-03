@@ -12,6 +12,7 @@ rm -rf \
   $sites_available/*
 
 cp /vagrant/provision/templates/nginx.conf /etc/nginx/nginx.conf
+cp -r /vagrant/provision/templates/sites/shared /etc/nginx
 
 # PHP Info
 echo "<?php phpinfo() ?>" | tee /usr/share/nginx/phpinfo.php > /dev/null
