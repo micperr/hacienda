@@ -2,17 +2,17 @@ ip: "10.11.12.13"
 memory: 2048
 cpus: 2
 
-# host_workspace:
 # db_password:
 
 # projects:
-#  project_folder_inside_workspace:
+#  project_name1:
+#    path: dirpath
 #    type: symfony # required
 #    domain: example.dev # optional (defaults to *.local)
 #    webpath: public # optional (defaults to project's root)
 
-#  another_project_folder_inside_workspace:
-#    type: static
+#  project_name2:
+#    path: dirpath
 #    (...)
 
 
@@ -20,4 +20,4 @@ cpus: 2
   # - from: /exampledir
     # to: /exampledir
 
-# mpd_music_directory: /exampledir # defaults to "/vagrant/Music"
+# music_directory: /exampledir # defaults to "/vagrant/Music"

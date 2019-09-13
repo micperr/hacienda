@@ -26,8 +26,8 @@ if [[ $1 && $2 ]]; then
 
       if ! [ -n "$(grep [^\.]$HOSTNAME /etc/hosts)" ]; then
         echo "Failed to add $HOSTNAME, Try again!"
-      else
-        echo "Added $HOSTNAME"
+      # else
+        # echo "Added $HOSTNAME"
       fi
     fi
   done

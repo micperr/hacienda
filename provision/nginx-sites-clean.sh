@@ -2,6 +2,8 @@ sites_available=/etc/nginx/sites-available
 sites_enabled=/etc/nginx/sites-enabled
 
 is_cleaned=false
+
+# Clean
 for site_available in ${sites_available}/*; do
     site_name=`basename ${site_available}`
     project_dir=/home/vagrant/${site_name}
@@ -22,10 +24,20 @@ for site_available in ${sites_available}/*; do
 done
 
 
+for dir_in_workspace in /home/vagrant/*; do
+    site_name=`basename ${dir_in_workspace}`
+    project_dir=/home/vagrant/${site_name}
+
+    if [[ -d ${dir_in_workspace} && ! "$(ls -A ${dir_in_workspace})" ]]; then
+
+        rm -rf ${dir_in_workspace} 2> /dev/null
+
+        printf "Cleaned ${site_name}\n"
+        is_cleaned=true
+    fi
+done
+
+
 if [ $is_cleaned ]; then
       echo "Nothing to clean"
 fi
-# if [[ -d /home/vagrant/${project} && ! -f ${sites_available}/${project} ]]; then
-#     echo '#{template_nginx_symfony_site_conf}' | sed s/{SITE}/${project}/g >> /etc/nginx/sites-available/${project}
-#     ln -s ${sites_available}/${project} ${sites_enabled}/${project}
-# fi

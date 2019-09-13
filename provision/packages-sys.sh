@@ -17,6 +17,7 @@
   php-intl \
   timidity++ \
   unzip \
+  virtualbox-guest-utils-nox \
   wget \
   xdebug \
   yarn \

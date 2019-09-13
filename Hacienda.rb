@@ -2,13 +2,17 @@
 
 class Hacienda
   SETTINGS_FILE = 'Hacienda.yml'
-  DEFAULT_IP = '10.11.12.13'
+  SYNCED_FOLDERS_LOGFILE = '.synced-folders.log'
   GUEST_HOME_DIR = '/home/vagrant'
   DEFAULT_MPD_MUSIC_DIR = '/vagrant/Music'
+  DEFAULT_IP = '10.11.12.13'
   SITETYPES_DIR = 'provision/templates/sites'
   MOUNT_OPTS = %w[rw async nolock sec=sys].freeze
   # MOUNT_OPTS = %w[rw tcp nolock noacl async].freeze
-  REQUIRED_SETTINGS = %w[host_workspace db_password].freeze
+  REQUIRED_SETTINGS = %w[db_password].freeze
+  AVAILABLE_SITETYPES = Dir.entries(SITETYPES_DIR)
+                           .reject { |f| ['.', '..'].include? f }
+                           .map { |s| s.sub('.conf', '') }
 
   def initialize(config)
     @settings = parse_and_validate_settings
@@ -20,6 +24,7 @@ class Hacienda
   def construct
     vm
     provision
+    setup_folders
     copy
   end
 
@@ -67,64 +72,91 @@ class Hacienda
     script('Installing composer', 'composer.sh', false)
     script('Configuring nginx folders', 'nginx.sh')
     script('Configuring nginx predefined sites (phpinfo, adminer)', 'nginx-sites-predefined.sh')
-
-    setup_projects
-
     script('Enabling daemon services', 'daemons.sh')
   end
 
   private
 
-  # PROJECTS FOLDERS AND SITES
-  def setup_projects
+  def setup_folders
     hosts = []
-    if @settings.include? 'projects'
+    sync_folders = []
+    sync_folders_log = (File.exist? SYNCED_FOLDERS_LOGFILE) ? File.readlines(SYNCED_FOLDERS_LOGFILE, chomp: true).map { |l| JSON.parse(l) } : []
+    # synced_folders_log = (File.exist? SYNCED_FOLDERS_LOGFILE) ? File.readlines(SYNCED_FOLDERS_LOGFILE, chomp: true).map { |f| JSON.parse(f) } : []
 
-      avail_sitetypes = Dir.entries(SITETYPES_DIR)
-                           .reject { |f| ['.', '..'].include? f }
-                           .map { |s| s.sub('.conf', '') }
+    if @settings.key?('folders') && @settings['folders'].is_a?(Hash)
 
-      @settings['projects'].each do |project_dirname, config|
-        type = config['type'] ||= error(format('`type` config value is not provided for a "%s" project', project_dirname))
-        domain = (config['domain'] ||= "#{project_dirname}.local").downcase
-
-        unless avail_sitetypes.include? type.to_s
-          error("`#{type}` site type is not valid. Valid types are: #{avail_sitetypes.join(', ')}")
+      @settings['folders'].each do |name, config|
+        type = config['type'] ||= error(format('`type` config value is not provided for a "%s" project', name))
+        unless AVAILABLE_SITETYPES.include? type
+          error("`#{type}` site type is not valid. Valid types are: #{AVAILABLE_SITETYPES.join(', ')}")
         end
 
-        # SYNC FOLDER
-        @config.vm.synced_folder File.join(@settings['host_workspace'], project_dirname), File.join(GUEST_HOME_DIR, project_dirname),
-                                 mount_options: MOUNT_OPTS,
-                                 type: 'nfs'
-        #  nfs_udp: false
-        #  nfs_version: 4
-        #  "nfs_export": false
+        path = config['path'] ||= error(format('`path` config value is not provided for a "%s" project', name))
+        domain = (config['domain'] ||= "#{name}.local").downcase
+        nginxconf = "/vagrant/#{SITETYPES_DIR}/#{type}.conf"
+        has_webpath = (config.include? 'webpath') && !config['webpath'].strip.empty?
+        root = has_webpath ? File.join(GUEST_HOME_DIR, name, config['webpath']) : File.join(GUEST_HOME_DIR, name)
 
-        # NGINX SITE CONFIG
-        sitetype_file = "/vagrant/#{SITETYPES_DIR}/#{type}.conf"
-        hasWebpath = (config.include? 'webpath') && !config['webpath'].strip.empty?
-        root = hasWebpath ?
-                File.join(GUEST_HOME_DIR, project_dirname, config['webpath']) : File.join(GUEST_HOME_DIR, project_dirname)
-
-        script(
-          "Configuring nginx site #{domain}", 'nginx-site.sh', true,
-          [
-            project_dirname, # $1
-            sitetype_file,   # $2
-            root,            # $3
-            domain           # $4
-            # File.read("#{SITETYPES_DIR}/#{type}.conf").gsub(/{ROOT}|{DOMAIN}/, '{ROOT}' => root, '{DOMAIN}' => domain)
-          ], {}
-        )
-
+        hashed_folder = Hash[name, config]
+        sync_folders.push(hashed_folder)
         hosts.push(domain)
-      end
 
-      update_etc_hosts(hosts)
+        # Generate NGINX config files if new or updated
+        unless sync_folders_log.include? hashed_folder
+          @config.trigger.after :up, :reload do |t|
+            t.info = info("Configuring site #{domain}")
+            t.run_remote = {
+              path: 'provision/nginx-site.sh',
+              args: [
+                name,       # $1
+                nginxconf,  # $2
+                root,       # $3
+                domain      # $4
+              ]
+            }
+          end
+        end
+
+        # Mark folder for VM syncing
+        @config.vm.synced_folder path, File.join(GUEST_HOME_DIR, name),
+                                 mount_options: MOUNT_OPTS, type: 'nfs' #  nfs_udp: false, nfs_version: 4, "nfs_export": false
+      end
 
     end
 
-    clean_unused_sites
+    # Log folders configs to be synced currently (do only on `up` and `reload`)
+    unless (%w[reload] & ARGV).empty?
+      File.open(SYNCED_FOLDERS_LOGFILE, 'w') do |f|
+        f.puts(sync_folders.map(&:to_json))
+      end
+    end
+
+    updated_folders = sync_folders - sync_folders_log
+    removed_folders = sync_folders_log.map { |e| e.keys.first } - sync_folders.map { |e| e.keys.first }
+
+    if !updated_folders.empty? || !removed_folders.empty?
+
+      # Update /etc/hosts on HOST OS
+      @config.trigger.after :up, :reload do |t|
+        t.info = info('Updating IP-host entries in /etc/hosts')
+        t.run = { path: 'provision/hosts.sh', args: [@ip] + hosts }
+      end
+
+      # Clean all removed sites
+      removed_folders.each do |name|
+        @config.trigger.after :reload do |t|
+          t.info = info("Cleaning #{name} folder and configs")
+          t.run_remote = { path: 'provision/nginx-site-clean.sh', args: [name] }
+        end
+      end
+
+      # Restart NGINX
+      @config.trigger.after :up, :reload do |t|
+        t.info = info('Restarting nginx')
+        t.run_remote = { inline: 'systemctl restart nginx' }
+      end
+
+    end
   end
 
   private
@@ -152,36 +184,13 @@ class Hacienda
 
   private
 
-  def script(title, script, privileged = true, args = [], envs = {}, name = 'all')
+  def script(title, script, privileged = true, args = [], envs = {})
     @config.vm.provision 'shell' do |s|
       s.name = info(title)
       s.path = "provision/#{script}"
       s.privileged = privileged
       s.args = args
       s.env = envs
-    end
-  end
-
-  private
-
-  def update_etc_hosts(hosts)
-    @config.trigger.after :up, :provision do |t|
-      t.info = info('Adding IP-host entries to /etc/hosts')
-      t.run = { path: 'provision/hosts.sh', args: [@ip] + hosts }
-    end
-
-    @config.trigger.after :destroy do |t|
-      t.info = info('Removing IP-host entries from /etc/hosts')
-      t.run = { path: 'provision/hosts.sh', args: ['--delete-only'] }
-    end
-  end
-
-  private
-
-  def clean_unused_sites
-    @config.trigger.after :reload do |t|
-      t.info = info('Cleaning unused sites folders and configs')
-      t.run_remote = { path: 'provision/nginx-sites-clean.sh' }
     end
   end
 

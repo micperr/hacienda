@@ -5,25 +5,7 @@ help:
 init: dist-exists ## Create Hacienda settings file
 	cp --no-clobber Hacienda.yml.dist Hacienda.yml ## Create Hacienda settings file
 
-up: dist-exists ## Start VM
-	vagrant up
-
-upr: dist-exists ## Start and provision VM
-	vagrant up --provision
-
-p: dist-exists ## Provision VM
-	vagrant provision
-
-r: dist-exists ## Reload VM
-	vagrant reload
-
-s: ## SSH into VM
-	vagrant ssh
-
-h: ## Halt VM
-	./.venv/bin/python server.py build
-
-d: ## Destroy VM
-	vagrant destroy
+sites: dist-exists ## Provision nginx sites only
+	vagrant provision --provision-with sites
 
 dist-exists: Hacienda.yml.dist
