@@ -24,8 +24,12 @@ class Hacienda
   def construct
     vm
     provision
-    setup_folders
     copy
+
+    if is_folders_setup_context?
+      folders
+    end
+
   end
 
   private
@@ -78,7 +82,12 @@ class Hacienda
 
   private
 
-  def setup_folders
+  def folders
+
+    if ! is_folders_setup_context?
+      error 'Folders setup is designed to run only on reload and first ever `up` vagrant\'s actions.'
+    end
+
     hosts = []
     sync_folders = []
     sync_folders_log = (File.exist? SYNCED_FOLDERS_LOGFILE) ? File.readlines(SYNCED_FOLDERS_LOGFILE, chomp: true).map { |l| JSON.parse(l) } : []
@@ -98,12 +107,12 @@ class Hacienda
         has_webpath = (config.include? 'webpath') && !config['webpath'].strip.empty?
         root = has_webpath ? File.join(GUEST_HOME_DIR, name, config['webpath']) : File.join(GUEST_HOME_DIR, name)
 
-        hashed_folder = Hash[name, config]
-        sync_folders.push(hashed_folder)
+        folder_config = Hash[name, config]
+        sync_folders.push(folder_config)
         hosts.push(domain)
 
         # Generate NGINX config files if new or updated
-        unless sync_folders_log.include? hashed_folder
+        unless sync_folders_log.include?(folder_config)
           @config.trigger.after :up, :reload do |t|
             t.info = info("Configuring site #{domain}")
             t.run_remote = {
@@ -125,17 +134,17 @@ class Hacienda
 
     end
 
-    # Log folders configs to be synced currently (do only on `up` and `reload`)
-    unless (%w[reload] & ARGV).empty?
+    # updated_folders = sync_folders - sync_folders_log
+    removed_folders = sync_folders_log.map { |e| e.keys.first } - sync_folders.map { |e| e.keys.first }
+    folders_been_removed = !removed_folders.empty?
+    folders_been_updated = !(sync_folders - sync_folders_log).empty?
+
+    # Do stuff only only when updates have been detected
+    if folders_been_updated || folders_been_removed
+
       File.open(SYNCED_FOLDERS_LOGFILE, 'w') do |f|
         f.puts(sync_folders.map(&:to_json))
       end
-    end
-
-    updated_folders = sync_folders - sync_folders_log
-    removed_folders = sync_folders_log.map { |e| e.keys.first } - sync_folders.map { |e| e.keys.first }
-
-    if !updated_folders.empty? || !removed_folders.empty?
 
       # Update /etc/hosts on HOST OS
       @config.trigger.after :up, :reload do |t|
@@ -156,8 +165,24 @@ class Hacienda
         t.info = info('Restarting nginx')
         t.run_remote = { inline: 'systemctl restart nginx' }
       end
-
     end
+
+    @config.trigger.after :destroy do |t|
+      t.info = info('Removing IP-host entries from /etc/hosts')
+      t.run = { path: 'provision/hosts.sh', args: ['--delete-only'] }
+    end
+
+    @config.trigger.after :destroy do |t|
+      t.info = info('Removing synced folders log file')
+      t.run = { inline: "rm -f #{SYNCED_FOLDERS_LOGFILE}" }
+    end
+
+  end
+
+  private
+
+  def is_folders_setup_context?
+    ARGV.include?('reload') || (ARGV.include?('up') && !File.exist?(".vagrant/machines/default/virtualbox/action_provision"))
   end
 
   private
