@@ -60,6 +60,7 @@ class Hacienda
   private
 
   def provision
+    inline('Setting local timezone to Europe/Warsaw', 'timedatectl set-timezone Europe/Warsaw')
     script('Installing system packages', 'packages-sys.sh')
     script('Installing AUR packages', 'packages-aur.sh', false)
     inline('Switching default shell to zsh', 'chsh -s $(which zsh) vagrant')
