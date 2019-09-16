@@ -26,10 +26,7 @@ class Hacienda
     provision
     copy
 
-    if is_folders_setup_context?
-      folders
-    end
-
+    folders if is_up_or_reload?
   end
 
   private
@@ -83,9 +80,8 @@ class Hacienda
   private
 
   def folders
-
-    if ! is_folders_setup_context?
-      error 'Folders setup is designed to run only on reload and first ever `up` vagrant\'s actions.'
+    unless is_up_or_reload?
+      error 'Folders setup is designed to run only on `up` and `reload` vagrant\'s actions.'
     end
 
     hosts = []
@@ -176,13 +172,18 @@ class Hacienda
       t.info = info('Removing synced folders log file')
       t.run = { inline: "rm -f #{SYNCED_FOLDERS_LOGFILE}" }
     end
-
   end
 
   private
 
-  def is_folders_setup_context?
-    ARGV.include?('reload') || (ARGV.include?('up') && !File.exist?(".vagrant/machines/default/virtualbox/action_provision"))
+  def is_up_or_reload?
+    ARGV.include?('up') || ARGV.include?('reload')
+  end
+
+  private
+
+  def is_provisioned?
+    File.exist?('.vagrant/machines/default/virtualbox/action_provision')
   end
 
   private
