@@ -11,7 +11,7 @@
   mpd \
   ncmpcpp \
   nginx \
-  nodejs \
+  nodejs-lts-dubnium \ # ver. 10.16.3-1 LTS // use "nodejs" for the latest version
   pacman-contrib \
   php-fpm \
   php-intl \

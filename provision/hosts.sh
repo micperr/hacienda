@@ -10,6 +10,9 @@ fi
 printf "### HACIENDA-SITES-BEGIN\n### HACIENDA-SITES-END\n" | sudo tee -a /etc/hosts >/dev/null
 
 
+sudo sed -i "/### HACIENDA-SITES-BEGIN/c\### HACIENDA-SITES-BEGIN\\n$1 phpinfo.local www.phpinfo.local" /etc/hosts
+sudo sed -i "/### HACIENDA-SITES-BEGIN/c\### HACIENDA-SITES-BEGIN\\n$1 adminer.local www.adminer.local" /etc/hosts
+
 # Add hosts
 if [[ $1 && $2 ]]; then
 

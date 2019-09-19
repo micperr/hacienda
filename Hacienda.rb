@@ -163,6 +163,7 @@ class Hacienda
       end
     end
 
+    # After DESTROY
     @config.trigger.after :destroy do |t|
       t.info = info('Removing IP-host entries from /etc/hosts')
       t.run = { path: 'provision/hosts.sh', args: ['--delete-only'] }
