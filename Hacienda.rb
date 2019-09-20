@@ -25,8 +25,8 @@ class Hacienda
     vm
     provision
     copy
-
     folders if is_up_or_reload?
+    after_destroy
   end
 
   private
@@ -162,8 +162,11 @@ class Hacienda
         t.run_remote = { inline: 'systemctl restart nginx' }
       end
     end
+  end
 
-    # After DESTROY
+  private
+  # After DESTROY triggers
+  def after_destroy
     @config.trigger.after :destroy do |t|
       t.info = info('Removing IP-host entries from /etc/hosts')
       t.run = { path: 'provision/hosts.sh', args: ['--delete-only'] }
