@@ -75,6 +75,7 @@ class Hacienda
     script('Configuring nginx folders', 'nginx.sh')
     script('Configuring nginx predefined sites (phpinfo, adminer)', 'nginx-sites-predefined.sh')
     script('Enabling daemon services', 'daemons.sh')
+    script('Setting up miscellaneous user settings', 'miscellaneous.sh', false)
   end
 
   private
