@@ -10,9 +10,6 @@ class Hacienda
   MOUNT_OPTS = %w[rw async nolock sec=sys].freeze
   # MOUNT_OPTS = %w[rw tcp nolock noacl async].freeze
   REQUIRED_SETTINGS = %w[db_password].freeze
-  AVAILABLE_SITETYPES = Dir.entries(SITETYPES_DIR)
-                           .reject { |f| ['.', '..'].include? f }
-                           .map { |s| s.sub('.conf', '') }
 
   def initialize(config)
     @settings = parse_and_validate_settings
@@ -37,8 +34,13 @@ class Hacienda
     @config.vm.box_check_update = false
     @config.vm.hostname = 'hacienda'
     @config.vm.network 'private_network', ip: @ip
+    @config.vm.network 'forwarded_port', guest: 3000, host: 3000
     @config.vm.network 'forwarded_port', guest: 3306, host: 3306
+    @config.vm.network 'forwarded_port', guest: 5432, host: 5432
+    @config.vm.network 'forwarded_port', guest: 8000, host: 8000
     @config.vm.network 'forwarded_port', guest: 8080, host: 8080
+    @config.vm.network 'forwarded_port', guest: 9000, host: 9000
+    @config.vm.network 'forwarded_port', guest: 9001, host: 9001
     @config.ssh.forward_agent = true
 
     @config.vm.provider 'virtualbox' do |vb|
@@ -68,6 +70,7 @@ class Hacienda
     inline('Chmod 755 guest workspace ', "chmod 755 #{GUEST_HOME_DIR}")
     script('Configuring MOTD', 'motd.sh')
     script('Configuring PHP', 'php.sh')
+    script('Configuring Ruby (rbenv)', 'ruby.sh')
     script('Installing MariaDB', 'mariadb.sh', true, [], 'DB_PASSWORD' => @settings['db_password'])
     script('Configuring MPD (Music Player Daemon)', 'mpd.sh', false, [@mpd_music_directory])
     script('Installing prezto', 'prezto.sh', false)
@@ -88,39 +91,52 @@ class Hacienda
     hosts = []
     sync_folders = []
     sync_folders_log = (File.exist? SYNCED_FOLDERS_LOGFILE) ? File.readlines(SYNCED_FOLDERS_LOGFILE, chomp: true).map { |l| JSON.parse(l) } : []
+
+    p File.readlines(SYNCED_FOLDERS_LOGFILE, chomp: true)
+    abort
     # synced_folders_log = (File.exist? SYNCED_FOLDERS_LOGFILE) ? File.readlines(SYNCED_FOLDERS_LOGFILE, chomp: true).map { |f| JSON.parse(f) } : []
 
     if @settings.key?('folders') && @settings['folders'].is_a?(Hash)
-
       @settings['folders'].each do |name, config|
         type = config['type'] ||= error(format('`type` config value is not provided for a "%s" project', name))
-        unless AVAILABLE_SITETYPES.include? type
-          error("`#{type}` site type is not valid. Valid types are: #{AVAILABLE_SITETYPES.join(', ')}")
+
+        # p AVAILABLE_SITETYPES.class
+        # AVAILABLE_SITETYPES = AVAILABLE_SITETYPES.push('custom')
+
+        available_sitetypes = (Dir.entries(SITETYPES_DIR)
+          .reject { |f| ['.', '..'].include? f }
+          .map { |s| s.sub('.conf', '') })
+                              .push('custom')
+
+        unless available_sitetypes.include? type
+          error("`#{type}` site type is not valid. Valid types are: #{available_sitetypes.join(', ')}")
         end
 
         path = config['path'] ||= error(format('`path` config value is not provided for a "%s" project', name))
-        domain = (config['domain'] ||= "#{name}.local").downcase
-        nginxconf = "/vagrant/#{SITETYPES_DIR}/#{type}.conf"
-        has_webpath = (config.include? 'webpath') && !config['webpath'].strip.empty?
-        root = has_webpath ? File.join(GUEST_HOME_DIR, name, config['webpath']) : File.join(GUEST_HOME_DIR, name)
-
         folder_config = Hash[name, config]
         sync_folders.push(folder_config)
-        hosts.push(domain)
 
-        # Generate NGINX config files if new or updated
-        unless sync_folders_log.include?(folder_config)
-          @config.trigger.after :up, :reload do |t|
-            t.info = info("Configuring site #{domain}")
-            t.run_remote = {
-              path: 'provision/nginx-site.sh',
-              args: [
-                name,       # $1
-                nginxconf,  # $2
-                root,       # $3
-                domain      # $4
-              ]
-            }
+        if type != 'custom' # Skip configuring nginx (useful for custom servers like PHP built-in or Ruby's puma)
+          domain = (config['domain'] ||= "#{name}.local").downcase
+          nginxconf = "/vagrant/#{SITETYPES_DIR}/#{type}.conf"
+          has_webpath = (config.include? 'webpath') && !config['webpath'].strip.empty?
+          root = has_webpath ? File.join(GUEST_HOME_DIR, name, config['webpath']) : File.join(GUEST_HOME_DIR, name)
+          hosts.push(domain)
+
+          # Generate NGINX config files if new or updated
+          unless sync_folders_log.include?(folder_config)
+            @config.trigger.after :up, :reload do |t|
+              t.info = info("Configuring site #{domain}")
+              t.run_remote = {
+                path: 'provision/nginx-site.sh',
+                args: [
+                  name,       # $1
+                  nginxconf,  # $2
+                  root,       # $3
+                  domain # $4
+                ]
+              }
+            end
           end
         end
 
@@ -128,7 +144,6 @@ class Hacienda
         @config.vm.synced_folder path, File.join(GUEST_HOME_DIR, name),
                                  mount_options: MOUNT_OPTS, type: 'nfs' #  nfs_udp: false, nfs_version: 4, "nfs_export": false
       end
-
     end
 
     # updated_folders = sync_folders - sync_folders_log
@@ -138,7 +153,6 @@ class Hacienda
 
     # Do stuff only only when updates have been detected
     if folders_been_updated || folders_been_removed
-
       File.open(SYNCED_FOLDERS_LOGFILE, 'w') do |f|
         f.puts(sync_folders.map(&:to_json))
       end
@@ -166,6 +180,7 @@ class Hacienda
   end
 
   private
+
   # After DESTROY triggers
   def after_destroy
     @config.trigger.after :destroy do |t|

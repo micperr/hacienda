@@ -18,6 +18,7 @@ function install() {
   fi
 }
 
-install ne
+# install ne
+install rbenv ruby-build
 
 yay -c --noconfirm

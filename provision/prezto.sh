@@ -13,3 +13,7 @@ if [ ! -d ~/.zprezto ]; then
   cp ~/.zprezto/contrib/micper/os.zsh.dist ~/.zprezto/contrib/micper/os.zsh
   sed -i '/arch.zsh/ s/^# *//' ~/.zprezto/contrib/micper/os.zsh
 fi
+
+# Add docker completion
+curl -fLo ~/.zprezto/modules/completion/external/src/_docker https://raw.githubusercontent.com/docker/cli/master/contrib/completion/zsh/_docker
+compinit

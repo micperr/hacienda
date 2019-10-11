@@ -28,7 +28,7 @@ send "y\r"
 expect eof
 
 exec systemctl stop mariadb.service
-# spawn mysql -u root -p -e "GRANT ALL PRIVILEGES ON *.* TO root@'%' IDENTIFIED BY 'xxx'"
+# spawn mysql -u root -p -e "GRANT ALL PRIVILEGES ON *.* TO root@'%' IDENTIFIED BY 'sqlwiel'"
 # expect "Enter password:"
 # send "${PASSWORD}\r"
 # expect eof
